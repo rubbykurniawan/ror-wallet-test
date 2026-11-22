@@ -2,7 +2,7 @@ require "test_helper"
 
 class WalletOwnerIntegrityTest < ActiveSupport::TestCase
   test "database rejects wallets with missing registered owners" do
-    ["User", "Team", "Stock"].each do |owner_type|
+    [ "User", "Team", "Stock" ].each do |owner_type|
       error = assert_raises(ActiveRecord::StatementInvalid) do
         Wallet.transaction(requires_new: true) do
           Wallet.insert_all!([
@@ -43,7 +43,7 @@ class WalletOwnerIntegrityTest < ActiveSupport::TestCase
     user = User.create!(email: "wallet-reassignment@example.test", password: "test-password")
     wallet = Wallet.create!(owner: user, currency: "IDR")
 
-    ["User", "Team", "Stock"].each do |owner_type|
+    [ "User", "Team", "Stock" ].each do |owner_type|
       error = assert_raises(ActiveRecord::StatementInvalid) do
         Wallet.transaction(requires_new: true) do
           Wallet.where(id: wallet.id).update_all(owner_type: owner_type, owner_id: -1)

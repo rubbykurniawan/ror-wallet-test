@@ -50,9 +50,9 @@ module WalletTransactions
           )
 
           entries = case transaction_type
-          when "deposit" then [[target, amount]]
-          when "withdraw" then [[source, -amount]]
-          when "transfer" then [[source, -amount], [target, amount]]
+          when "deposit" then [ [ target, amount ] ]
+          when "withdraw" then [ [ source, -amount ] ]
+          when "transfer" then [ [ source, -amount ], [ target, amount ] ]
           end
           entries.each do |wallet, signed_amount|
             transaction.ledger_entries.create!(wallet: wallet, amount: signed_amount)
@@ -93,12 +93,12 @@ module WalletTransactions
 
     def validate_wallets!(transaction_type, source, target)
       expected = {
-        "deposit" => [nil, true],
-        "withdraw" => [true, nil],
-        "transfer" => [true, true]
+        "deposit" => [ nil, true ],
+        "withdraw" => [ true, nil ],
+        "transfer" => [ true, true ]
       }.fetch(transaction_type)
       raise InvalidRequest, "source or target wallet is missing" unless (!!source == !!expected[0]) && (!!target == !!expected[1])
-      raise InvalidRequest, "wallets must be persisted" if [source, target].compact.any? { |wallet| !wallet.is_a?(Wallet) || !wallet.persisted? }
+      raise InvalidRequest, "wallets must be persisted" if [ source, target ].compact.any? { |wallet| !wallet.is_a?(Wallet) || !wallet.persisted? }
       raise InvalidRequest, "transfer wallets must differ" if source && target && source.id == target.id
       raise InvalidRequest, "wallet currency mismatch" if source && target && source.currency != target.currency
 
@@ -111,7 +111,7 @@ module WalletTransactions
     end
 
     def request_fingerprint(transaction_type, source, target)
-      canonical = [transaction_type, source&.id, target&.id, amount.to_s("F")].join(":")
+      canonical = [ transaction_type, source&.id, target&.id, amount.to_s("F") ].join(":")
       Digest::SHA256.hexdigest(canonical)
     end
 
@@ -126,7 +126,7 @@ module WalletTransactions
     end
 
     def lock_wallets(source, target)
-      ids = [source, target].compact.map(&:id).uniq.sort
+      ids = [ source, target ].compact.map(&:id).uniq.sort
       locked = Wallet.where(id: ids).order(:id).lock.to_a.index_by(&:id)
       raise InvalidRequest, "wallet no longer exists" unless locked.size == ids.size
 

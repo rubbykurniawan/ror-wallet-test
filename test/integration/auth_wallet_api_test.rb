@@ -62,12 +62,33 @@ class AuthWalletApiTest < ActionDispatch::IntegrationTest
     cookies["wallet_session"] = session_token
 
     get "/api/v1/wallets/#{@other_wallet.id}", as: :json
-    assert_response :forbidden
+    assert_response :not_found
 
     post "/api/v1/transactions/withdraw",
       params: { source_wallet_id: @other_wallet.id, amount: "1.00" },
       headers: { "X-CSRF-Token" => csrf_token, "Idempotency-Key" => "forbidden-withdraw" }, as: :json
     assert_response :forbidden
+  end
+
+  test "wallet reads return the same not-found response for foreign and missing wallet IDs" do
+    _csrf_token, session_token = sign_in
+    cookies["wallet_session"] = session_token
+
+    get "/api/v1/wallets/#{@other_wallet.id}", as: :json
+    assert_response :not_found
+    foreign_wallet_response = response.parsed_body
+
+    get "/api/v1/wallets/99999999", as: :json
+    assert_response :not_found
+    assert_equal foreign_wallet_response, response.parsed_body
+
+    get "/api/v1/wallets/#{@other_wallet.id}/transactions", as: :json
+    assert_response :not_found
+    foreign_history_response = response.parsed_body
+
+    get "/api/v1/wallets/99999999/transactions", as: :json
+    assert_response :not_found
+    assert_equal foreign_history_response, response.parsed_body
   end
 
   test "wallet history and transaction API expose derived balances and support transfer idempotency" do
@@ -97,6 +118,30 @@ class AuthWalletApiTest < ActionDispatch::IntegrationTest
     assert_equal 2, response.parsed_body.fetch("data").length
   end
 
+  test "transfers may credit Team and Stock wallets without exposing their balances" do
+    csrf_token, session_token = sign_in
+    cookies["wallet_session"] = session_token
+    team_wallet = Wallet.create!(owner: Team.create!(name: "Receiving Team"), currency: "IDR")
+    stock_wallet = Wallet.create!(owner: Stock.create!(symbol: "RCVG"), currency: "IDR")
+
+    post "/api/v1/transactions/deposit", params: { target_wallet_id: @wallet.id, amount: "20.00" },
+      headers: { "X-CSRF-Token" => csrf_token, "Idempotency-Key" => "seed-multi-owner" }, as: :json
+    assert_response :created
+
+    [ [ team_wallet, "3.00", "team-target" ], [ stock_wallet, "4.00", "stock-target" ] ].each do |target, amount, key|
+      post "/api/v1/transactions/transfer",
+        params: { source_wallet_id: @wallet.id, target_wallet_id: target.id, amount: amount },
+        headers: { "X-CSRF-Token" => csrf_token, "Idempotency-Key" => key }, as: :json
+
+      assert_response :created
+      assert_not response.parsed_body.fetch("data").key?("target_balance")
+    end
+
+    assert_equal BigDecimal("3.00"), team_wallet.reload.balance
+    assert_equal BigDecimal("4.00"), stock_wallet.reload.balance
+    assert_equal BigDecimal("13.00"), @wallet.reload.balance
+  end
+
   test "API reports malformed amounts and changed idempotent payloads with stable codes" do
     csrf_token, session_token = sign_in
     cookies["wallet_session"] = session_token
@@ -112,6 +157,37 @@ class AuthWalletApiTest < ActionDispatch::IntegrationTest
     post "/api/v1/transactions/deposit", params: { target_wallet_id: @wallet.id, amount: "2.00" }, headers: headers, as: :json
     assert_response :conflict
     assert_equal "idempotency_conflict", response.parsed_body.dig("error", "code")
+  end
+
+  test "deposit reports a missing target wallet as a validation error naming the field" do
+    csrf_token, session_token = sign_in
+    cookies["wallet_session"] = session_token
+
+    post "/api/v1/transactions/deposit", params: { amount: "10.00" },
+      headers: { "X-CSRF-Token" => csrf_token, "Idempotency-Key" => "missing-target" }, as: :json
+
+    assert_response :unprocessable_entity
+    assert_equal "validation_error", response.parsed_body.dig("error", "code")
+    assert_includes response.parsed_body.dig("error", "message"), "target_wallet_id"
+  end
+
+  test "unexpected API errors return a generic JSON response without internal details" do
+    _csrf_token, session_token = sign_in
+    cookies["wallet_session"] = session_token
+
+    original_balance = Wallet.instance_method(:balance)
+    Wallet.define_method(:balance) { raise RuntimeError, "internal database detail" }
+    begin
+      get "/api/v1/wallets/#{@wallet.id}", as: :json
+    ensure
+      Wallet.define_method(:balance, original_balance)
+    end
+
+    assert_response :internal_server_error
+    assert_equal "internal_server_error", response.parsed_body.dig("error", "code")
+    assert_equal "An unexpected error occurred. Please try again later.", response.parsed_body.dig("error", "message")
+    assert_not_includes response.body, "internal database detail"
+    assert_match %r{application/json}, response.media_type
   end
 
   test "expired and revoked sessions are rejected" do
@@ -130,7 +206,7 @@ class AuthWalletApiTest < ActionDispatch::IntegrationTest
 
   def sign_in
     post "/api/v1/sign_in", params: { email: @user.email, password: "correct horse battery staple" }, as: :json
-    [response.parsed_body.dig("data", "csrf_token"), response.cookies["wallet_session"]]
+    [ response.parsed_body.dig("data", "csrf_token"), response.cookies["wallet_session"] ]
   end
 
   def persist_test_session(token:, expires_at:, revoked_at: nil)

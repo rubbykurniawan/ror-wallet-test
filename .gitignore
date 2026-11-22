@@ -21,6 +21,7 @@
 
 # Environment and local tooling
 /.superpowers/
+/docs/superpowers/plans/2026-11-21-internal-wallet-transactional-system.md
 .env
 .env.*
 !.env.example

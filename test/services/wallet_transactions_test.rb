@@ -19,7 +19,7 @@ class WalletTransactionsTest < ActiveSupport::TestCase
 
     assert_equal transaction.id, replay.id
     assert_equal BigDecimal("100"), @source.balance
-    assert_equal [BigDecimal("100")], transaction.ledger_entries.pluck(:amount)
+    assert_equal [ BigDecimal("100") ], transaction.ledger_entries.pluck(:amount)
   end
 
   test "withdrawal debits only available funds and rejects overdrafts" do
@@ -29,7 +29,7 @@ class WalletTransactionsTest < ActiveSupport::TestCase
       actor: @actor, source_wallet: @source, amount: 30, idempotency_key: "w1"
     )
 
-    assert_equal [BigDecimal("-30")], transaction.ledger_entries.pluck(:amount)
+    assert_equal [ BigDecimal("-30") ], transaction.ledger_entries.pluck(:amount)
     assert_equal BigDecimal("50"), @source.balance
     assert_raises(WalletTransactions::InsufficientFunds) do
       WalletTransactions::Withdrawal.call(actor: @actor, source_wallet: @source, amount: 51, idempotency_key: "w2")
@@ -44,7 +44,7 @@ class WalletTransactionsTest < ActiveSupport::TestCase
       actor: @actor, source_wallet: @source, target_wallet: @target, amount: 35, idempotency_key: "t1"
     )
 
-    assert_equal [BigDecimal("-35"), BigDecimal("35")], transaction.ledger_entries.order(:wallet_id).pluck(:amount)
+    assert_equal [ BigDecimal("-35"), BigDecimal("35") ], transaction.ledger_entries.order(:wallet_id).pluck(:amount)
     assert_equal BigDecimal("65"), @source.balance
     assert_equal BigDecimal("35"), @target.balance
   end

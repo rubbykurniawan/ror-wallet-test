@@ -32,7 +32,7 @@ The transaction requests use fixed example idempotency keys. Repeating the same 
 - Authenticated `POST` and `DELETE` requests need the session cookie and matching CSRF token in both `wallet_csrf` cookie and `X-CSRF-Token` header. Postman manages the cookies and each write request includes the header.
 - Wallet reads are restricted to the signed-in user's own wallet. The transfer response omits the target wallet's balance to avoid revealing another owner's data.
 - Transaction writes require `Idempotency-Key`. Success returns `201 Created`; sign-out returns `204 No Content`.
-- Error shape: `{ "error": { "code": "...", "message": "..." } }`. Common codes: `unauthorized`, `forbidden`, `csrf_invalid`, `not_found`, `validation_error`, `insufficient_funds`, and `idempotency_conflict`.
+- Error shape: `{ "error": { "code": "...", "message": "..." } }`. Common codes: `unauthorized`, `forbidden`, `csrf_invalid`, `not_found`, `validation_error`, `insufficient_funds`, `idempotency_conflict`, and `internal_server_error` (generic `500`; server details are not returned to clients).
 
 ### Response shapes
 

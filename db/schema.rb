@@ -9,8 +9,9 @@
 # migrations use external dependencies or application code.
 #
 # It's strongly recommended that you check this file into your version control system.
+# PostgreSQL triggers are maintained in db/structure.sql, the canonical schema dump.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_21_000006) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_000007) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 

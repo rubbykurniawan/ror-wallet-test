@@ -2,14 +2,12 @@ module Api
   module V1
     class WalletsController < BaseController
       def show
-        wallet = Wallet.find(params[:id])
-        authorize_read!(wallet)
+        wallet = WalletAccessPolicy.new(current_user).readable_wallets.find(params[:id])
         render json: { data: wallet_data(wallet) }
       end
 
       def transactions
-        wallet = Wallet.find(params[:id])
-        authorize_read!(wallet)
+        wallet = WalletAccessPolicy.new(current_user).readable_wallets.find(params[:id])
         entries = wallet.ledger_entries.includes(:wallet_transaction).order(id: :desc).limit(100)
         render json: {
           data: entries.map do |entry|

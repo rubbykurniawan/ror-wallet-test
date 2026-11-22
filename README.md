@@ -4,7 +4,7 @@ API-only Ruby on Rails application for IDR wallets, atomic ledger-backed money o
 
 ## Runtime and setup
 
-- Ruby `3.3.6` (pinned in `.ruby-version`)
+- Ruby `3.3.14` (pinned in `.ruby-version`; includes the November 2026 security fixes)
 - Rails `8.1.4.1`
 - PostgreSQL; the application is intended for a currently supported PostgreSQL release. Local development was verified with PostgreSQL `12.22`, which is end-of-life; use a supported release such as PostgreSQL 17 or 18 for a new deployment ([versioning policy](https://www.postgresql.org/support/versioning/)).
 - Minitest; bcrypt is used only for password hashing. No authentication framework is installed.
@@ -34,7 +34,7 @@ PostgreSQL 18's `pg_dump` emits a setting PostgreSQL 12 cannot parse, so client/
 
 ## Data and money rules
 
-- `User`, `Team`, `Stock`, and registered future owner models can each own one wallet per currency through a polymorphic association. The supported currency is currently IDR only.
+- `User`, `Team`, and `Stock` can each own one IDR wallet through a polymorphic association. Adding another owner model requires a migration that extends the PostgreSQL owner-reference and owner-protection triggers; including `WalletOwner` alone does not enable it in the database.
 - The wallet balance is always derived from `SUM(ledger_entries.amount)`. No mutable balance column is maintained.
 - Ledger entries are signed and append-only. PostgreSQL constraints and triggers protect direction, transaction completeness, and immutability even when writes bypass validations.
 - Amounts use `decimal(20,2)`. The initial policy rejects overdrafts.
@@ -72,7 +72,7 @@ All routes are under `/api/v1`:
 
 Sign-in accepts JSON `{ "email": "...", "password": "..." }`. It returns a CSRF token in `data.csrf_token` and sets an HTTP-only `wallet_session` cookie plus a readable `wallet_csrf` cookie. Production session cookies use `Secure`; cookies use `SameSite=Strict`. Authenticated write requests must send the same CSRF value in `X-CSRF-Token` and the `wallet_csrf` cookie.
 
-Deposit JSON is `{ "target_wallet_id": 1, "amount": "10.00" }`; withdrawal uses `source_wallet_id`; transfer uses both IDs. All wallet transaction requests require an `Idempotency-Key` header. Successful responses include transaction metadata and the actor's permitted wallet balance; a transfer response does not expose the target wallet's balance. Errors use `{ "error": { "code": "...", "message": "..." } }`; codes include `unauthorized`, `forbidden`, `not_found`, `validation_error`, `insufficient_funds`, `idempotency_conflict`, and `csrf_invalid`. There is no `/sign_up` route.
+Deposit JSON is `{ "target_wallet_id": 1, "amount": "10.00" }`; withdrawal uses `source_wallet_id`; transfer uses both IDs. All wallet transaction requests require an `Idempotency-Key` header. Successful responses include transaction metadata and the actor's permitted wallet balance; a transfer response does not expose the target wallet's balance. Errors use `{ "error": { "code": "...", "message": "..." } }`; codes include `unauthorized`, `forbidden`, `not_found`, `validation_error`, `insufficient_funds`, `idempotency_conflict`, `csrf_invalid`, and `internal_server_error`. Unexpected server errors return a generic message while diagnostic details stay in server logs. There is no `/sign_up` route.
 
 ## Stock price integration
 

@@ -51,6 +51,6 @@ class LedgerEntryTest < ActiveSupport::TestCase
     )
     entry = LedgerEntry.create!(wallet: wallet, wallet_transaction: transaction, amount: "10.00")
 
-    [transaction, entry]
+    [ transaction, entry ]
   end
 end

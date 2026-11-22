@@ -8,7 +8,7 @@ class Wallet < ApplicationRecord
   has_many :incoming_transactions, class_name: "WalletTransaction",
     foreign_key: :target_wallet_id, dependent: :restrict_with_exception
 
-  validates :currency, inclusion: { in: [CURRENCY] }
+  validates :currency, inclusion: { in: [ CURRENCY ] }
   validates :owner_id, uniqueness: { scope: %i[owner_type currency] }
   validate :owner_type_is_registered
 

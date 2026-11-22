@@ -2,7 +2,7 @@ module Api
   module V1
     class TransactionsController < BaseController
       def deposit
-        wallet = Wallet.find(params[:target_wallet_id])
+        wallet = Wallet.find(params.require(:target_wallet_id))
         policy = WalletAccessPolicy.new(current_user)
         raise WalletTransactions::Forbidden, "deposit target is forbidden" unless policy.deposit?(wallet)
 
@@ -13,7 +13,7 @@ module Api
       end
 
       def withdraw
-        wallet = Wallet.find(params[:source_wallet_id])
+        wallet = Wallet.find(params.require(:source_wallet_id))
         policy = WalletAccessPolicy.new(current_user)
         raise WalletTransactions::Forbidden, "source wallet is forbidden" unless policy.debit?(wallet)
 
@@ -24,8 +24,8 @@ module Api
       end
 
       def transfer
-        source = Wallet.find(params[:source_wallet_id])
-        target = Wallet.find(params[:target_wallet_id])
+        source = Wallet.find(params.require(:source_wallet_id))
+        target = Wallet.find(params.require(:target_wallet_id))
         policy = WalletAccessPolicy.new(current_user)
         raise WalletTransactions::Forbidden, "source wallet is forbidden" unless policy.debit?(source)
         raise WalletTransactions::Forbidden, "transfer target is forbidden" unless policy.transfer_target?(target)

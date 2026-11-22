@@ -3,8 +3,8 @@ class WalletAccessPolicy
     @user = user
   end
 
-  def read?(wallet)
-    own_user_wallet?(wallet)
+  def readable_wallets
+    user.wallets
   end
 
   def debit?(wallet)

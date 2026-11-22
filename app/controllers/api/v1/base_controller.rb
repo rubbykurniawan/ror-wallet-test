@@ -6,6 +6,7 @@ module Api
       before_action :authenticate_user!
       before_action :verify_csrf_token!, if: :state_changing_request?
 
+      rescue_from StandardError, with: :render_internal_server_error
       rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
       rescue_from WalletTransactions::Forbidden, with: :render_forbidden
       rescue_from WalletTransactions::InvalidRequest, ActiveRecord::RecordInvalid, ActionController::ParameterMissing,
@@ -65,6 +66,12 @@ module Api
         render_error("not_found", "Resource not found", :not_found)
       end
 
+      def render_internal_server_error(error)
+        Rails.logger.error("Unhandled API exception request_id=#{request.request_id} error=#{error.class}")
+        Rails.logger.error(error.backtrace.join("\n")) if error.backtrace.present?
+        render_error("internal_server_error", "An unexpected error occurred. Please try again later.", :internal_server_error)
+      end
+
       def render_error(code, message, status)
         render json: { error: { code: code, message: message } }, status: status
       end
@@ -73,9 +80,6 @@ module Api
         format("%.2f", amount)
       end
 
-      def authorize_read!(wallet)
-        raise WalletTransactions::Forbidden, "wallet access is forbidden" unless WalletAccessPolicy.new(current_user).read?(wallet)
-      end
     end
   end
 end

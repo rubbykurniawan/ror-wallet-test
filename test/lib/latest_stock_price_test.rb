@@ -23,7 +23,7 @@ class LatestStockPriceTest < ActiveSupport::TestCase
 
   test "price, prices, and price_all issue configured GET requests and return parsed JSON" do
     requests = []
-    bodies = ['{"ticker":"AAPL","price":210.50}', '{"tickers":["AAPL","MSFT"]}', '[{"ticker":"AAPL"}]']
+    bodies = [ '{"ticker":"AAPL","price":210.50}', '{"tickers":["AAPL","MSFT"]}', '[{"ticker":"AAPL"}]' ]
     test_case = self
     with_http do |http|
       http.define_singleton_method(:request) do |request|
@@ -32,8 +32,8 @@ class LatestStockPriceTest < ActiveSupport::TestCase
       end
 
       assert_equal({ "ticker" => "AAPL", "price" => 210.50 }, LatestStockPrice.price("AAPL"))
-      assert_equal({ "tickers" => ["AAPL", "MSFT"] }, LatestStockPrice.prices(%w[AAPL MSFT]))
-      assert_equal [{ "ticker" => "AAPL" }], LatestStockPrice.price_all
+      assert_equal({ "tickers" => [ "AAPL", "MSFT" ] }, LatestStockPrice.prices(%w[AAPL MSFT]))
+      assert_equal [ { "ticker" => "AAPL" } ], LatestStockPrice.price_all
       assert_equal "/v1/price?ticker=AAPL", requests[0].path
       assert_equal "/v1/prices?tickers=AAPL&tickers=MSFT", requests[1].path
       assert_equal "/v1/all", requests[2].path

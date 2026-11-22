@@ -14,7 +14,7 @@ module LatestStockPrice
       parameter = endpoint["symbol_param"] || endpoint[:symbol_param]
       raise ConfigurationError, "price endpoint must define symbol_param" if parameter.to_s.empty?
 
-      get(endpoint, [[parameter.to_s, value]])
+      get(endpoint, [ [ parameter.to_s, value ] ])
     end
 
     def prices(symbols)
@@ -27,9 +27,9 @@ module LatestStockPrice
 
       encoding = (endpoint["symbols_encoding"] || endpoint[:symbols_encoding] || :repeated).to_sym
       parameters = if encoding == :comma_separated
-        [[parameter.to_s, values.join(",")]]
+        [ [ parameter.to_s, values.join(",") ] ]
       elsif encoding == :repeated
-        values.map { |value| [parameter.to_s, value] }
+        values.map { |value| [ parameter.to_s, value ] }
       else
         raise ConfigurationError, "symbols_encoding must be repeated or comma_separated"
       end

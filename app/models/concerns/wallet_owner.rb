@@ -3,7 +3,7 @@ module WalletOwner
     @owner_types = []
 
     def self.register(owner_class)
-      @owner_types |= [owner_class.name]
+      @owner_types |= [ owner_class.name ]
     end
 
     def self.owner_types

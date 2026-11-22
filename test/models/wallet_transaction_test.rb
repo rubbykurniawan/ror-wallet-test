@@ -76,7 +76,7 @@ class WalletTransactionTest < ActiveSupport::TestCase
   test "zero and negative transaction amounts are rejected" do
     user, wallet = user_and_wallet("nonpositive-amount")
 
-    ["0.00", "-1.00"].each_with_index do |amount, index|
+    [ "0.00", "-1.00" ].each_with_index do |amount, index|
       transaction = build_transaction(
         actor: user, transaction_type: "deposit", source_wallet: nil, target_wallet: wallet,
         amount: amount
@@ -92,12 +92,12 @@ class WalletTransactionTest < ActiveSupport::TestCase
     now = Time.current
 
     assert_raises(ActiveRecord::StatementInvalid) do
-      WalletTransaction.insert_all!([{
+      WalletTransaction.insert_all!([ {
         transaction_type: "deposit", actor_id: user.id,
         source_wallet_id: wallet.id, target_wallet_id: wallet.id,
         amount: "1.00", idempotency_key: "invalid-direction",
         request_fingerprint: "e" * 64, created_at: now, updated_at: now
-      }])
+      } ])
     end
   end
 
@@ -105,7 +105,7 @@ class WalletTransactionTest < ActiveSupport::TestCase
 
   def user_and_wallet(suffix)
     user = User.create!(email: "#{suffix}@example.test", password: "test-password")
-    [user, Wallet.create!(owner: user, currency: "IDR")]
+    [ user, Wallet.create!(owner: user, currency: "IDR") ]
   end
 
   def build_transaction(actor:, transaction_type:, source_wallet:, target_wallet:, amount: "1.00")
