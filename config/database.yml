@@ -1,0 +1,20 @@
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS", 5) %>
+  host: <%= ENV["PGHOST"] %>
+  port: <%= ENV["PGPORT"] %>
+  username: <%= ENV["PGUSER"] %>
+  password: <%= ENV["PGPASSWORD"] %>
+
+development:
+  <<: *default
+  database: <%= ENV.fetch("DEVELOPMENT_DATABASE", "internal_wallet_development") %>
+
+test:
+  <<: *default
+  database: <%= ENV.fetch("TEST_DATABASE", "internal_wallet_test") %>
+
+production:
+  <<: *default
+  url: <%= ENV["DATABASE_URL"] %>

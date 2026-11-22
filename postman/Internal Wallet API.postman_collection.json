@@ -1,0 +1,280 @@
+{
+  "info": {
+    "_postman_id": "2b8a35f6-911f-4aad-a7b5-f9c6e77e3f01",
+    "name": "Internal Wallet Transactional System API",
+    "description": "# Internal Wallet API\n\nPostman requests for the Rails JSON API. Start the Rails server, create a provisioned user and wallets, import the Local environment, select it, then use the Auth, Wallets, and Transactions folders in order.\n\n## Important behavior\n- This is an API-only app; there is no signup endpoint.\n- Only IDR wallets are supported. Amounts are decimal strings with at most two fractional digits.\n- Deposit directly credits the user's own internal wallet. It is not connected to a bank, card, or payment provider.\n- Withdrawal debits the user's own wallet; it does not send money to an external account.\n- Transfers debit only the signed-in user's wallet and may credit any existing wallet. Team and Stock wallets may receive transfers but cannot be debited through this API.\n- Every transaction request needs a unique `Idempotency-Key`. Reusing a key with the same actor and same request returns the original transaction; changing the payload with the same key returns `409 idempotency_conflict`. Change the key when changing the amount or wallet IDs.\n- After sign-in, Postman stores the `wallet_session` cookie automatically. The sign-in test script saves `data.csrf_token` into the selected environment as `csrfToken`; authenticated POST/DELETE requests send it as `X-CSRF-Token`. Keep using the same hostname (`localhost` vs `127.0.0.1`) so Postman sends the cookie.\n- A transfer response returns `source_balance` only. It deliberately does not reveal the target wallet balance.\n\n## Common error format\n`{ \"error\": { \"code\": \"...\", \"message\": \"...\" } }`\n\nCommon codes: `unauthorized` (401), `forbidden` / `csrf_invalid` (403), `not_found` (404), `validation_error` / `insufficient_funds` (422), and `idempotency_conflict` (409).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "description": "Check that Rails is running. This endpoint does not require authentication.",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/up",
+            "description": "Expected: HTTP 200 when the app is healthy."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "description": "Sign in with a user created by an administrator. No signup route is available.",
+      "item": [
+        {
+          "name": "Sign in",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Sign-in returns 201', function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  pm.environment.set('csrfToken', body.data.csrf_token);",
+                  "  pm.test('CSRF token was saved to the selected environment', function () { pm.expect(body.data.csrf_token).to.be.a('string').and.not.empty; });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/v1/sign_in",
+            "description": "Creates a session for an existing user. On success, the server sets `wallet_session` (HTTP-only) and `wallet_csrf` cookies and returns a CSRF token. Postman keeps the cookies in its cookie jar; the test script saves the CSRF token into the selected environment.\n\nSuccess: `201 Created`. Invalid credentials: `401` with error code `unauthorized`."
+          },
+          "response": []
+        },
+        {
+          "name": "Current user",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/me",
+            "description": "Returns the signed-in user's ID and email. Requires the session cookie. Success: `200 OK`; missing, expired, or revoked session: `401 unauthorized`."
+          },
+          "response": []
+        },
+        {
+          "name": "Sign out",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "X-CSRF-Token", "value": "{{csrfToken}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/sign_out",
+            "description": "Revokes the current database session and clears both auth cookies. Requires the session cookie and CSRF header. Success: `204 No Content`. Sign in again before making more authenticated requests."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Sign-out returns 204', function () { pm.response.to.have.status(204); });",
+                  "if (pm.response.code === 204) { pm.environment.unset('csrfToken'); }"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Wallets",
+      "description": "Wallet reads are limited to wallets owned by the signed-in user. Wallet creation is not exposed over this API.",
+      "item": [
+        {
+          "name": "Show my wallet",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/wallets/{{sourceWalletId}}",
+            "description": "Returns wallet ID, currency, and ledger-derived balance. Set `sourceWalletId` to a wallet owned by the signed-in user. Success: `200`; another user's wallet: `403`; unknown ID: `404`."
+          },
+          "response": []
+        },
+        {
+          "name": "My wallet transaction history",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/wallets/{{sourceWalletId}}/transactions",
+            "description": "Returns up to 100 newest ledger entries for a wallet owned by the signed-in user. Each item includes the signed amount, transaction ID/type, and creation time. Positive amounts credit the wallet; negative amounts debit it."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Transactions",
+      "description": "All transaction writes require a valid session cookie, `X-CSRF-Token`, and a unique `Idempotency-Key`. Use decimal amounts such as `\"25.00\"`; values with more than two decimal places are rejected. Wallet balance is derived from ledger entries.",
+      "item": [
+        {
+          "name": "Deposit (internal credit)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Deposit returns 201', function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code === 201) { pm.test('Response contains a transaction ID', function () { pm.expect(pm.response.json().data.id).to.be.a('number'); }); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" },
+              { "key": "X-CSRF-Token", "value": "{{csrfToken}}" },
+              { "key": "Idempotency-Key", "value": "{{depositIdempotencyKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"target_wallet_id\": {{sourceWalletId}},\n  \"amount\": \"10.00\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/v1/transactions/deposit",
+            "description": "Credits the signed-in user's own wallet and creates a positive ledger entry. This endpoint represents an internal credit only; it is not connected to a payment gateway. Success: `201 Created` with transaction data and the wallet's new balance."
+          },
+          "response": []
+        },
+        {
+          "name": "Withdraw (internal debit)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Withdrawal returns 201', function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" },
+              { "key": "X-CSRF-Token", "value": "{{csrfToken}}" },
+              { "key": "Idempotency-Key", "value": "{{withdrawIdempotencyKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source_wallet_id\": {{sourceWalletId}},\n  \"amount\": \"5.00\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/v1/transactions/withdraw",
+            "description": "Debits the signed-in user's own wallet by creating a negative ledger entry. There is no external payout. The amount cannot exceed the ledger-derived balance. Insufficient balance returns `422 insufficient_funds`. Success: `201 Created` with the new balance."
+          },
+          "response": []
+        },
+        {
+          "name": "Transfer to another wallet",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Transfer returns 201', function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code === 201) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.test('Response does not disclose target balance', function () { pm.expect(data).not.to.have.property('target_balance'); });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" },
+              { "key": "X-CSRF-Token", "value": "{{csrfToken}}" },
+              { "key": "Idempotency-Key", "value": "{{transferIdempotencyKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source_wallet_id\": {{sourceWalletId}},\n  \"target_wallet_id\": {{targetWalletId}},\n  \"amount\": \"5.00\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/v1/transactions/transfer",
+            "description": "Debits the signed-in user's wallet and credits any existing target wallet, including a User, Team, or Stock wallet. The source must belong to the signed-in user; the target ID must exist. Success: `201 Created`, with balanced signed ledger entries and the source balance. The target balance is intentionally omitted."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Error and idempotency examples",
+      "description": "Optional requests for trying common errors. Restore the amount/key after experiments before running the normal flow again.",
+      "item": [
+        {
+          "name": "Missing CSRF header",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "csrf-error-example" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"target_wallet_id\": {{sourceWalletId}},\n  \"amount\": \"1.00\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/v1/transactions/deposit",
+            "description": "Intentionally omits `X-CSRF-Token`. With an active session, expected response is `403` and code `csrf_invalid`. No ledger entry is written."
+          },
+          "response": []
+        },
+        {
+          "name": "Over-precision amount",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-CSRF-Token", "value": "{{csrfToken}}" },
+              { "key": "Idempotency-Key", "value": "precision-error-example" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"target_wallet_id\": {{sourceWalletId}},\n  \"amount\": \"1.001\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/v1/transactions/deposit",
+            "description": "Intentionally uses three decimal places. Expected response is `422 validation_error`; no transaction is committed."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000", "type": "string" }
+  ]
+}
